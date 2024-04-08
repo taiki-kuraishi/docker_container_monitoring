@@ -1,0 +1,49 @@
+services:
+  influxdb:
+    image: influxdb:1.8
+    container_name: influxdb
+    volumes:
+      - influxdb-store:/var/lib/influxdb
+    ports:
+      - 8086:8086
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=password
+      - DOCKER_INFLUXDB_INIT_ORG=organization
+    healthcheck:
+      test: ["CMD", "curl", "influxdb:8086/ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    container_name: cadvisor
+    privileged: true
+    ports:
+      - "8080:8080"
+    volumes:
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    command: --storage_driver=influxdb --storage_driver_host=influxdb:8086 --storage_driver_user=admin --storage_driver_password=password --storage_driver_secure=False
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - 3000:3000
+    volumes:
+      - grafana-store:/var/lib/grafana
+    depends_on:
+      - cadvisor
+
+volumes:
+  influxdb-store:
+  grafana-store:
