@@ -1,0 +1,75 @@
+services:
+  influxdb:
+    image: influxdb:2.7-alpine
+    container_name: influxdb
+    volumes:
+      - influxdb2-data:/var/lib/influxdb2
+      - influxdb2-config:/etc/influxdb2
+      - ./influxdb.conf:/etc/influxdb/influxdb.conf:ro
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=password
+      - DOCKER_INFLUXDB_INIT_ORG=organization
+      - DOCKER_INFLUXDB_INIT_BUCKET=bucket
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=token
+      - DOCKER_INFLUXD_CONFIG_PATH=/etc/influxdb/influxdb.conf
+    deploy:
+      resources:
+        limits:
+          cpus: '0.10'
+          memory: 200M
+    healthcheck:
+      test: ["CMD", "curl", "influxdb:8086/health"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+
+  telegraf:
+    image: telegraf:1.30-alpine
+    container_name: telegraf
+    entrypoint: "telegraf"  #https://github.com/influxdata/telegraf/issues/10031
+    volumes:
+      - ./telegraf.conf:/etc/telegraf/telegraf.conf:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys:/rootfs/sys:ro
+      - /proc:/rootfs/proc:ro
+      - /etc:/rootfs/etc:ro
+    environment:
+      HOST_PROC: /rootfs/proc
+      HOST_SYS: /rootfs/sys
+      HOST_ETC: /rootfs/etc
+    deploy:
+      resources:
+        limits:
+          cpus: '0.10'
+          memory: 75M
+    depends_on:
+      - influxdb
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - 3000:3000
+    volumes:
+      - grafana-store:/var/lib/grafana
+      - ./docker_monitoring_dashboard.json:/var/lib/grafana/dashboards/docker_monitoring_dashboard.json:ro
+      - ./dashboard.yml:/etc/grafana/provisioning/dashboards/dashboard.yml:ro
+      - ./datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '0.10'
+          memory: 100M
+    depends_on:
+      influxdb:
+        condition: service_healthy
+
+volumes:
+  influxdb-store:
+  grafana-store:
+  influxdb2-data:
+  influxdb2-config:
